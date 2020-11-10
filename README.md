@@ -1,3 +1,3 @@
-# Alpha Proxy
+# AMP
 By Team DominateTheStreetsYeetTheSkeet
 

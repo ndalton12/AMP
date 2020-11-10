@@ -1,4 +1,4 @@
-name: AlphaProxy
+name: AMP
 channels:
   - pytorch
   - defaults
@@ -103,5 +103,5 @@ dependencies:
     - tqdm==4.51.0
     - urllib3==1.25.11
     - yarl==1.6.2
-prefix: /Users/niall/.conda/envs/AlphaProxy
+prefix: /Users/niall/.conda/envs/AMP
 
