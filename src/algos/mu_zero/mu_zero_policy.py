@@ -144,9 +144,9 @@ def mu_zero_loss(
 
     pred_reward = model.reward_function()
 
-    reward_loss = torch.nn.functional.mse_loss(pred_reward, train_batch[SampleBatch.REWARDS])
+    reward_loss = torch.nn.functional.mse_loss(pred_reward, train_batch[SampleBatch.REWARDS].float())
 
-    mcts_loss = torch.nn.functional.nll(logp, train_batch["mcts_policy"])
+    mcts_loss = torch.mean(-train_batch["mcts_policy"] * logp)
 
     total_loss += reward_loss + mcts_loss
 

@@ -85,7 +85,7 @@ class MuZeroDynamicsModel(nn.Module):
 
         self.dynamic_layers = [
             SlimConv2d(
-                self.channels + 1 if i == 0 else self.channels,  # encode actions for first layer needs extra channel
+                self.channels + self.action_size if i == 0 else self.channels,  # encode actions for first layer
                 self.channels,
                 kernel=1,
                 stride=1,
@@ -131,11 +131,10 @@ class MuZeroDynamicsModel(nn.Module):
 
     def encode(self, hidden, action):
         assert isinstance(action, torch.Tensor)
-        action = action.long()
 
-        action = torch.nn.functional.one_hot(action, num_classes=self.action_size)
+        action = torch.nn.functional.one_hot(action.long(), num_classes=self.action_size)
         action = action.unsqueeze(-1).unsqueeze(-1).unsqueeze(0)  # action is now 1 x space_size x 1 x 1
-        action = action.repeat(hidden.shape[0], 1, 1, 1)  # repeat along batch dim to match hidden
+        action = action.repeat(hidden.shape[0], 1, 1, 1).float()  # repeat along batch dim to match hidden
 
         new_tensor = torch.cat((hidden, action), dim=1)
 
