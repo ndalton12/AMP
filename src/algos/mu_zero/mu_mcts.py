@@ -3,16 +3,14 @@ Mcts implementation modified from
 https://github.com/brilee/python_uct/blob/master/numpy_impl.py
 and Alpha Zero implementation from rllib
 """
-import numpy as np
+import torch
 
 
 class Node:
-    def __init__(self, state, reward, policy, action_size):
-        self.q_values = np.zeros(
-            [action_size], dtype=np.float32)  # Q
+    def __init__(self, state, reward, policy, action_size, device):
+        self.q_values = torch.zeros(action_size).to(device)  # Q
 
-        self.visits = np.zeros(
-            [action_size], dtype=np.float32)  # N
+        self.visits = torch.zeros(action_size).to(device)
 
         self.reward = reward
         self.state = state
@@ -25,13 +23,19 @@ class Node:
         self.visits[action] += 1
 
     def get_total_visits(self):
-        return np.sum(self.visits)
+        return torch.sum(self.visits)
 
     def q_value(self, action):
         return self.q_values[action]
 
     def set_q_value(self, q_val, action):
         self.q_values[action] = q_val
+
+    def min_q(self):
+        return torch.min(self.q_values)
+
+    def max_q(self):
+        return torch.max(self.q_values)
 
     def update(self, gain, action_index, min_q, max_q):
 
@@ -45,18 +49,16 @@ class Node:
         self.update_num_visit(action_index)
 
     def action_distribution(self):
-        total = np.sum(self.visits)
+        total = torch.sum(self.visits)
 
         return self.visits / total
 
 
 class RootParentNode(Node):
-    def __init__(self, initial_state, action_size):
-        self.q_values = np.zeros(
-            [action_size], dtype=np.float32)  # Q
 
-        self.visits = np.zeros(
-            [action_size], dtype=np.float32)  # N
+    def __init__(self, initial_state, action_size, device):
+        self.q_values = torch.zeros(action_size).to(device)  # Q
+        self.visits = torch.zeros(action_size).to(device)  # N
 
         self.state = initial_state
 
@@ -69,6 +71,7 @@ class MCTS:
         self.c2 = mcts_param["c2"]
         self.gamma = mcts_param["gamma"]
         self.action_space = action_length
+        self.device = model.device
 
         assert self.k > 1, "K simulations must be greater than 1"
 
@@ -77,11 +80,11 @@ class MCTS:
 
     def get_action(self, node):
         total_visits = node.get_total_visits()
-        term = (self.c1 + np.log(total_visits + self.c2 + 1) - np.log(self.c2))
+        term = (self.c1 + torch.log(total_visits + self.c2 + 1) - torch.log(self.c2))
 
-        values = node.q_values + node.policy * term * np.sqrt(total_visits) / (1 + node.visits)
+        values = node.q_values + node.policy * term * torch.sqrt(total_visits) / (1 + node.visits)
 
-        return np.argmax(values)
+        return torch.argmax(values)
 
     def lookup(self, state, action):
         if (state, action) in self.lookup_table:
@@ -95,12 +98,12 @@ class MCTS:
             return self.state_node_dict[state]
         else:
             policy, _ = self.model.prediction_function(state)
-            new_node = Node(state, reward, policy, action_size=self.action_space)
+            new_node = Node(state, reward, policy, action_size=self.action_space, device=self.device)
             self.state_node_dict[state] = new_node
             return new_node
 
     def store(self, state, reward, policy):
-        new_node = Node(state, reward, policy, action_size=self.action_space)
+        new_node = Node(state, reward, policy, action_size=self.action_space, device=self.device)
         self.state_node_dict[state] = new_node
 
     def reset_nodes(self):
@@ -109,9 +112,9 @@ class MCTS:
 
     def compute_gain(self, rewards, v_l, i, l):
         reward_step = rewards[i + 1:]
-        exponents = np.arange(len(reward_step))
-        discounts = np.power(self.gamma * np.ones(len(reward_step)), exponents)
-        return np.power(self.gamma, l - i) * v_l + np.dot(reward_step, discounts)
+        exponents = torch.arange(len(reward_step))
+        discounts = torch.pow(self.gamma * torch.ones(len(reward_step)), exponents)
+        return torch.pow(torch.Tensor(self.gamma).to(self.device), l - i) * v_l + torch.dot(reward_step, discounts)
 
     def get_root_policy(self, obs):
         s0 = self.model.representation_function(obs)
@@ -124,35 +127,35 @@ class MCTS:
             k = self.k
 
         s0 = self.model.representation_function(obs)
-        current_node = RootParentNode(s0, self.action_space)
+        current_node = RootParentNode(s0, self.action_space, self.device)
         self.state_node_dict[s0] = current_node
         s_i = s0
 
-        state_action = np.array([])
-        rewards = np.array([])
-        min_q = float("inf")
-        max_q = float("-inf")
+        state_action = []
+        rewards = []
+        min_q = torch.Tensor(float("inf"))
+        max_q = torch.Tensor(float("-inf"))
 
         for i in range(k):
             a_i = self.get_action(current_node)
-            state_action = np.append(state_action, (s_i, a_i))
+            state_action.append((s_i, a_i))
 
             s_i_prime, r_i = self.lookup(s_i, a_i)
-            rewards = np.append(rewards, r_i)
+            rewards.append((rewards, r_i))
 
             current_node = self.state_to_node(s_i_prime, r_i)
             s_i = s_i_prime
 
-            min_q = np.minimum(min_q, current_node.min_q())
-            max_q = np.maximum(max_q, current_node.max_q())
+            min_q = torch.min(min_q, current_node.min_q())
+            max_q = torch.max(max_q, current_node.max_q())
 
         a_l = self.get_action(current_node)
-        state_action = np.append(state_action, (s_i, a_l))
+        state_action.append((s_i, a_l))
 
         r_l, s_l = self.model.dynamics_function(s_i, a_l)
         p_l, v_l = self.model.prediction_function(s_l)
 
-        rewards = np.append(rewards, r_l)
+        rewards.append((rewards, r_l))
 
         self.store(s_l, r_l, p_l)
 
