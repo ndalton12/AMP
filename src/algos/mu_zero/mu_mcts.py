@@ -44,6 +44,11 @@ class Node:
         self.set_q_value(q_val, action_index)
         self.update_num_visit(action_index)
 
+    def action_distribution(self):
+        total = np.sum(self.visits)
+
+        return self.visits / total
+
 
 class RootParentNode(Node):
     def __init__(self, initial_state, action_size):
@@ -59,7 +64,6 @@ class RootParentNode(Node):
 class MCTS:
     def __init__(self, model, mcts_param, action_length):
         self.model = model
-        self.exploit = mcts_param["argmax_tree_policy"]
         self.k = mcts_param["k_sims"]
         self.c1 = mcts_param["c1"]
         self.c2 = mcts_param["c2"]
@@ -86,7 +90,7 @@ class MCTS:
             reward, new_state = self.model.dynamics(state, action)
             self.lookup_table[(state, action)] = (new_state, reward)
 
-    def state_to_node(self, state, reward):
+    def state_to_node(self, state, reward=0):
         if state in self.state_node_dict:
             return self.state_node_dict[state]
         else:
@@ -109,15 +113,19 @@ class MCTS:
         discounts = np.power(self.gamma * np.ones(len(reward_step)), exponents)
         return np.power(self.gamma, l - i) * v_l + np.dot(reward_step, discounts)
 
-    def simulation(self, obs, k=None, training=True):
+    def get_root_policy(self, obs):
+        s0 = self.model.representation(obs)
+        root_node = self.state_to_node(s0)
+
+        return root_node.action_distribution()
+
+    def simulation(self, obs, k=None):
         if k is None:
             k = self.k
 
-        if training:
-            self.reset_nodes()
-
         s0 = self.model.representation(obs)
         current_node = RootParentNode(s0, self.action_space)
+        self.state_node_dict[s0] = current_node
         s_i = s0
 
         state_action = np.array([])

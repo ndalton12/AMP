@@ -2,7 +2,7 @@
 from ray import tune
 from ray.rllib.agents.ppo import PPOTrainer
 
-from env_wrappers import register_super_mario_env
+from src.common.env_wrappers import register_super_mario_env
 
 
 def train():
