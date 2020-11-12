@@ -131,6 +131,8 @@ class MCTS:
         if k is None:
             k = self.k
 
+        self.reset_nodes()
+
         s0 = self.model.representation_function(obs)
         p0, v0 = self.model.prediction_function(s0)
         current_node = Node(s0, torch.Tensor([0]).to(self.device), p0, self.action_space, self.device)  # root node

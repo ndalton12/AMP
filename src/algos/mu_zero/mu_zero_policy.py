@@ -65,6 +65,8 @@ def fetch(policy: Policy, input_dict: Dict[str, TensorType],
     """
 
     fetches = vf_preds_fetches(policy, input_dict, state_batches, model, action_dist)
+    # THIS SQUEEZE IS NECESSARY, otherwise ray crashes without giving a call trace to any original code :(
+    fetches[SampleBatch.VF_PREDS] = fetches[SampleBatch.VF_PREDS].squeeze()
 
     fetches["mcts_policy"] = input_dict["mcts_policy"]
 

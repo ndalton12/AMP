@@ -136,7 +136,7 @@ def kl_and_loss_stats(policy: Policy,
         "vf_loss": policy._mean_vf_loss,
         "vf_explained_var": explained_variance(
             train_batch[Postprocessing.VALUE_TARGETS],
-            policy.model.value_function()),
+            policy.model.value_function().squeeze()),
         "kl": policy._mean_kl,
         "entropy": policy._mean_entropy,
         "entropy_coeff": policy.entropy_coeff,
@@ -168,7 +168,7 @@ def vf_preds_fetches(
     # SampleBatches produced by the sampler(s) to generate the train batches
     # going into the loss function.
     return {
-        SampleBatch.VF_PREDS: policy.model.value_function(),
+        SampleBatch.VF_PREDS: policy.model.value_function().squeeze(),
     }
 
 

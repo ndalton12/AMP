@@ -134,8 +134,8 @@ class MuZeroDynamicsModel(nn.Module):
         action = action.long()
 
         action = torch.nn.functional.one_hot(action, num_classes=self.action_size)
-        # action size happens to line up with num workers/env lol, TODO improve action encoding
-        action = action.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+        action = action.unsqueeze(-1).unsqueeze(-1).unsqueeze(0)  # action is now 1 x space_size x 1 x 1
+        action = action.repeat(hidden.shape[0], 1, 1, 1)  # repeat along batch dim to match hidden
 
         new_tensor = torch.cat((hidden, action), dim=1)
 
@@ -173,6 +173,7 @@ class MuZeroModel(TorchModelV2, nn.Module):
 
         self.hidden = None
         self.last_action = None
+        self.stored_value = None
 
     @override(TorchModelV2)
     def forward(self, input_dict: Dict[str, TensorType], state: List[TensorType],
@@ -180,17 +181,27 @@ class MuZeroModel(TorchModelV2, nn.Module):
 
         representation = self.representation_function(input_dict[SampleBatch.OBS])
 
-        self.last_action = input_dict[SampleBatch.ACTIONS][-1]
+        self.last_action = input_dict[SampleBatch.PREV_ACTIONS][-1]
 
-        policy_logits, _ = self.prediction_function(representation)
+        policy_logits, value = self.prediction_function(representation)
 
-        return policy_logits, None
+        self.stored_value = value
+
+        return policy_logits, []  # state output must be a list here cuz modelv2 requires it rip
 
     @override(TorchModelV2)
     def value_function(self) -> TensorType:
-        assert self.hidden is not None, "must call representation function first"
+        assert self.hidden is not None or self.stored_value is not None, "call forward() or representation() first"
 
-        _, value = self.prediction_function(self.hidden)
+        if self.stored_value is None:
+            _, value = self.prediction_function(self.hidden)
+        else:
+            value = self.stored_value
+
+        if len(value.shape) == 1:
+            value = value.unsqueeze(0)  # add fake batch dim
+        elif len(value.shape) == 0:
+            value = value.unsqueeze(0).unsqueeze(0)  # add fake batch dim and real dim
 
         return value
 
