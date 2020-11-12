@@ -150,6 +150,7 @@ class MuZeroModel(TorchModelV2, nn.Module):
 
         self.activation = base_model.model_config.get("conv_activation")
         self.output_size = base_model.num_outputs
+        self.base_model = base_model
 
         filters = self.model_config["conv_filters"]
         out_channels, kernel, stride = filters[-1]

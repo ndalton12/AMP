@@ -17,7 +17,10 @@ def train():
         "num_envs_per_worker": 5,
         "entropy_coeff": 0.01,
         "kl_coeff": 0.0,
-        "vf_share_layers": True
+        "vf_share_layers": True,
+        "train_batch_size": 256,
+        "num_sgd_iter": 2,
+        "num_simulations": 25,
     })
 
 

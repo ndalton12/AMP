@@ -10,7 +10,7 @@ DEFAULT_CONFIG = with_common_config({
     # The GAE(lambda) parameter.
     "lambda": 1.0,
     # Initial coefficient for KL divergence.
-    "kl_coeff": 0.2,
+    "kl_coeff": 0.0,
     # Size of batches collected from each worker.
     "rollout_fragment_length": 200,
     # Number of timesteps collected for each SGD round. This defines the size
@@ -35,7 +35,7 @@ DEFAULT_CONFIG = with_common_config({
     # you set vf_share_layers: True.
     "vf_loss_coeff": 1.0,
     # Coefficient of the entropy regularizer.
-    "entropy_coeff": 0.0,
+    "entropy_coeff": 0.01,
     # Decay schedule for the entropy regularizer.
     "entropy_coeff_schedule": None,
     # PPO clip parameter.

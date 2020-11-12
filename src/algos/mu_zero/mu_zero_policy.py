@@ -6,7 +6,7 @@ import gym
 from ray.rllib import SampleBatch
 from ray.rllib.agents.a3c.a3c_torch_policy import apply_grad_clipping
 from ray.rllib.agents.ppo.ppo_tf_policy import postprocess_ppo_gae, setup_config
-from ray.rllib.agents.ppo.ppo_torch_policy import setup_mixins, kl_and_loss_stats, vf_preds_fetches, KLCoeffMixin, \
+from ray.rllib.agents.ppo.ppo_torch_policy import setup_mixins, vf_preds_fetches, KLCoeffMixin, \
     ValueNetworkMixin, training_view_requirements_fn
 from ray.rllib.evaluation import MultiAgentEpisode
 from ray.rllib.evaluation.postprocessing import Postprocessing
@@ -144,6 +144,7 @@ def mu_zero_loss(
 
     pred_reward = model.reward_function()
 
+    # rewards need to be float for proper bAcK pRopAgAtiOn
     reward_loss = torch.nn.functional.mse_loss(pred_reward, train_batch[SampleBatch.REWARDS].float())
 
     mcts_loss = torch.mean(-train_batch["mcts_policy"] * logp)
@@ -216,12 +217,36 @@ def mu_action_distribution(policy: Policy, model: ModelV2, current_obs, explore:
 
     return dist_inputs, dist_class, state_out
 
+def stats_function(policy: Policy,
+                      train_batch: SampleBatch) -> Dict[str, TensorType]:
+    """Stats function for PPO. Returns a dict with important KL and loss stats.
+
+    Args:
+        policy (Policy): The Policy to generate stats for.
+        train_batch (SampleBatch): The SampleBatch (already) used for training.
+
+    Returns:
+        Dict[str, TensorType]: The stats dict.
+    """
+    return {
+        "cur_kl_coeff": policy.kl_coeff,
+        "cur_lr": policy.cur_lr,
+        "total_loss": policy._total_loss,
+        "policy_loss": policy._mean_policy_loss,
+        "vf_loss": policy._mean_vf_loss,
+        "kl": policy._mean_kl,
+        "entropy": policy._mean_entropy,
+        "entropy_coeff": policy.entropy_coeff,
+        "reward_loss": policy._mean_reward_loss,
+        "mcts_loss": policy._mcts_loss,
+    }
+
 
 MuZeroTorchPolicy = build_torch_policy(
     name="MuZeroTorchPolicy",
     get_default_config=lambda: DEFAULT_CONFIG,
     loss_fn=mu_zero_loss,
-    stats_fn=kl_and_loss_stats,
+    stats_fn=stats_function,
     extra_action_out_fn=fetch,
     postprocess_fn=postprocess_mu_zero,
     extra_grad_process_fn=apply_grad_clipping,
