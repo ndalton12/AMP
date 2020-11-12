@@ -37,7 +37,9 @@ class Node:
     def max_q(self):
         return torch.max(self.q_values)
 
-    def update(self, gain, action_index, min_q, max_q):
+    def update(self, gain, action, min_q, max_q):
+
+        action_index = action.item()
 
         n_a = self.number_visits(action_index)
         q_old = self.q_value(action_index)
@@ -54,24 +56,15 @@ class Node:
         return self.visits / total
 
 
-class RootParentNode(Node):
-
-    def __init__(self, initial_state, action_size, device):
-        self.q_values = torch.zeros(action_size).to(device)  # Q
-        self.visits = torch.zeros(action_size).to(device)  # N
-
-        self.state = initial_state
-
-
 class MCTS:
-    def __init__(self, model, mcts_param, action_length):
+    def __init__(self, model, mcts_param, action_length, device):
         self.model = model
+        self.device = device
         self.k = mcts_param["k_sims"]
-        self.c1 = mcts_param["c1"]
-        self.c2 = mcts_param["c2"]
-        self.gamma = mcts_param["gamma"]
+        self.c1 = torch.Tensor([mcts_param["c1"]]).to(self.device)
+        self.c2 = torch.Tensor([mcts_param["c2"]]).to(self.device)
+        self.gamma = torch.Tensor([mcts_param["gamma"]]).to(self.device)
         self.action_space = action_length
-        self.device = model.device
 
         assert self.k > 1, "K simulations must be greater than 1"
 
@@ -80,9 +73,14 @@ class MCTS:
 
     def get_action(self, node):
         total_visits = node.get_total_visits()
-        term = (self.c1 + torch.log(total_visits + self.c2 + 1) - torch.log(self.c2))
+        term = (self.c1 + torch.log(total_visits + self.c2 + torch.Tensor([1]).to(self.device)) - torch.log(self.c2))
 
-        values = node.q_values + node.policy * term * torch.sqrt(total_visits) / (1 + node.visits)
+        if len(node.policy.shape) > 1:
+            policy = torch.mean(node.policy, dim=0)
+        else:
+            policy = node.policy
+
+        values = node.q_values + policy * term * torch.sqrt(total_visits) / (torch.Tensor([1]).to(self.device) + node.visits)
 
         return torch.argmax(values)
 
@@ -92,6 +90,7 @@ class MCTS:
         else:
             reward, new_state = self.model.dynamics_function(state, action)
             self.lookup_table[(state, action)] = (new_state, reward)
+            return new_state, reward
 
     def state_to_node(self, state, reward=0):
         if state in self.state_node_dict:
@@ -111,37 +110,48 @@ class MCTS:
         self.state_node_dict = {}
 
     def compute_gain(self, rewards, v_l, i, l):
-        reward_step = rewards[i + 1:]
-        exponents = torch.arange(len(reward_step))
-        discounts = torch.pow(self.gamma * torch.ones(len(reward_step)), exponents)
-        return torch.pow(torch.Tensor(self.gamma).to(self.device), l - i) * v_l + torch.dot(reward_step, discounts)
+        reward_step = rewards[i:]
+        reward_chunk = torch.flatten(torch.hstack(reward_step))
+        exponents = torch.arange(len(reward_chunk)).to(self.device)
+        discounts = torch.pow(self.gamma * torch.ones_like(reward_chunk).to(self.device), exponents)
+        reward_chunk = reward_chunk.squeeze()
+        discounts = discounts.squeeze()
+        v_l = v_l.squeeze()
+        return torch.sum(torch.pow(self.gamma, l - i) * v_l) + torch.dot(reward_chunk, discounts)
 
-    def get_root_policy(self, obs):
-        s0 = self.model.representation_function(obs)
-        root_node = self.state_to_node(s0)
+    def get_root_policy(self):
+        """
+        Only call after running simulations
+        """
+        root_node = self.state_to_node(self.s0)
 
         return root_node.action_distribution()
 
-    def simulation(self, obs, k=None):
+    def setup_simulation(self, obs, k=None):
         if k is None:
             k = self.k
 
         s0 = self.model.representation_function(obs)
-        current_node = RootParentNode(s0, self.action_space, self.device)
+        p0, v0 = self.model.prediction_function(s0)
+        current_node = Node(s0, torch.Tensor([0]).to(self.device), p0, self.action_space, self.device)  # root node
+        self.s0 = s0
         self.state_node_dict[s0] = current_node
         s_i = s0
 
+        return k, current_node, s_i
+
+    def run_simulation(self, k, current_node, s_i):
         state_action = []
         rewards = []
-        min_q = torch.Tensor(float("inf"))
-        max_q = torch.Tensor(float("-inf"))
+        min_q = torch.Tensor([float("inf")]).to(self.device)
+        max_q = torch.Tensor([float("-inf")]).to(self.device)
 
         for i in range(k):
             a_i = self.get_action(current_node)
             state_action.append((s_i, a_i))
 
             s_i_prime, r_i = self.lookup(s_i, a_i)
-            rewards.append((rewards, r_i))
+            rewards.append(r_i)
 
             current_node = self.state_to_node(s_i_prime, r_i)
             s_i = s_i_prime
@@ -155,13 +165,14 @@ class MCTS:
         r_l, s_l = self.model.dynamics_function(s_i, a_l)
         p_l, v_l = self.model.prediction_function(s_l)
 
-        rewards.append((rewards, r_l))
+        rewards.append(r_l)
 
         self.store(s_l, r_l, p_l)
 
         self.backup(state_action, rewards, v_l, k, min_q, max_q)
 
     def backup(self, states, rewards, v_l, k, min_q, max_q):
+        # TODO double check calculations here and in computing gain
         for i in reversed(range(1, k + 1)):
             g_i = self.compute_gain(rewards, v_l, i, k)
 

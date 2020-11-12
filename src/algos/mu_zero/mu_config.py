@@ -59,7 +59,7 @@ DEFAULT_CONFIG = with_common_config({
     # Set this to True for debugging on non-GPU machines (set `num_gpus` > 0).
     "_fake_gpus": False,
     # === MCTS ===
-    "mcts_config": {
+    "mcts_param": {
         "c1": 1.25,  # from mu zero paper
         "c2": 19652,  # from mu zero paper, don't know why it's so big?
         "k_sims": 5,  # from mu zero paper

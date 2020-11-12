@@ -6,6 +6,7 @@ from ray.rllib import SampleBatch
 from ray.rllib.models import ModelCatalog, ModelV2
 from ray.rllib.models.torch.misc import same_padding, SlimConv2d, SlimFC, normc_initializer
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
+from ray.rllib.utils import override
 from ray.rllib.utils.typing import ModelConfigDict, TensorType
 from torch import nn
 
@@ -29,9 +30,9 @@ class MuZeroPredictionModel(nn.Module):
         self.layer1 = SlimConv2d(
             self.channels,
             self.channels,
-            kernel,
-            stride,
-            None,
+            kernel=1,  # change to different value when representation function is changed?
+            stride=1,
+            padding=None,
             activation_fn=self.activation)
 
         self.layer2 = SlimConv2d(
@@ -42,15 +43,15 @@ class MuZeroPredictionModel(nn.Module):
                     padding,
                     activation_fn=None)
 
-        self.policy = nn.Sequential(self.layer1, self.layer2, nn.Flatten())
+        self.policy = nn.Sequential(self.layer1, self.layer2, nn.Flatten(), nn.Softmax())
 
         self.vlayer1 = SlimConv2d(
-                self.channels,
-                self.channels,
-                kernel,
-                stride,
-                None,
-                activation_fn=self.activation)
+            self.channels,
+            self.channels,
+            kernel=1,  # change to different value when representation function is changed?
+            stride=1,
+            padding=None,
+            activation_fn=self.activation)
 
         self.vlayer2 = SlimConv2d(
                 in_channels=self.channels,
@@ -58,33 +59,35 @@ class MuZeroPredictionModel(nn.Module):
                 kernel=1,
                 stride=1,
                 padding=None,
-                activation_fn=None)
+                activation_fn=activation)
 
         self.value = nn.Sequential(self.vlayer1, self.vlayer2, nn.Flatten())
 
     def forward(self, hidden):
         """
-        Hidden state should be Batch x 256 x ? x ? by default configs
+        Hidden state should be Batch x 256 x 1 x 1 by default configs
         """
         policy_out = self.policy(hidden)
 
         value_out = self.value(hidden)
+        value_out = value_out.squeeze()
 
         return policy_out, value_out
 
 
 class MuZeroDynamicsModel(nn.Module):
-    def __init__(self, activation, channels=256):
+    def __init__(self, activation, action_size, channels=256):
         nn.Module.__init__(self)
 
         self.activation = activation
         self.channels = channels
+        self.action_size = action_size
 
         self.dynamic_layers = [
             SlimConv2d(
                 self.channels + 1 if i == 0 else self.channels,  # encode actions for first layer needs extra channel
                 self.channels,
-                kernel=3,
+                kernel=1,
                 stride=1,
                 padding=None,
                 activation_fn=self.activation
@@ -94,7 +97,7 @@ class MuZeroDynamicsModel(nn.Module):
         self.dynamic_head = SlimConv2d(
             self.channels,
             self.channels,
-            kernel=3,
+            kernel=1,
             stride=1,
             padding=None,
             activation_fn=None
@@ -106,7 +109,7 @@ class MuZeroDynamicsModel(nn.Module):
 
         self.reward_layers = [
             SlimFC(
-                256 * 6 * 6 if i == 0 else 256,
+                256 if i == 0 else 256,  # could make different later
                 256 if i != 4 else 1,
                 initializer=normc_initializer(0.01),
                 activation_fn=self.activation if i != 4 else None
@@ -127,11 +130,12 @@ class MuZeroDynamicsModel(nn.Module):
         return reward, new_hidden
 
     def encode(self, hidden, action):
-        if isinstance(action, int):
-            action = torch.LongTensor(action).to(self.device)
-        else:
-            assert isinstance(action, torch.Tensor)
-            action = action.long().to(self.device)
+        assert isinstance(action, torch.Tensor)
+        action = action.long()
+
+        action = torch.nn.functional.one_hot(action, num_classes=self.action_size)
+        # action size happens to line up with num workers/env lol, TODO improve action encoding
+        action = action.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
 
         new_tensor = torch.cat((hidden, action), dim=1)
 
@@ -142,46 +146,55 @@ class MuZeroModel(TorchModelV2, nn.Module):
 
     def __init__(self, obs_space: gym.spaces.Space, action_space: gym.spaces.Space, num_outputs: int,
                  model_config: ModelConfigDict, name: str, base_model: ModelV2):
-        super().__init__(obs_space, action_space, num_outputs, model_config, name)
+        TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
+        nn.Module.__init__(self)
+
+        self.activation = base_model.model_config.get("conv_activation")
+        self.output_size = base_model.num_outputs
+
+        filters = self.model_config["conv_filters"]
+        out_channels, kernel, stride = filters[-1]
+        (w, h, in_channels) = obs_space.shape
+        in_size = [w, h]
+
+        self.prediction = MuZeroPredictionModel(self.activation, in_size, kernel, stride, self.output_size)
+        self.dynamics = MuZeroDynamicsModel(self.activation, self.output_size)
 
         out_conv = SlimConv2d(
-            256,
-            256,
-            kernel=3,
+            out_channels,
+            out_channels,
+            kernel=1,
             stride=1,
             padding=None,
             activation_fn=None
         )
 
-        self.representation = nn.Sequential(base_model._convs, out_conv)  # assumes you're using vision network not fully connected one
-        self.activation = base_model.activation
-        self.output_size = base_model.num_outputs
-        self.prediction = MuZeroPredictionModel(self.activation, base_model.in_size, base_model.kernel,
-                                                base_model.stride, self.output_size)
-        self.dynamics = MuZeroDynamicsModel(self.activation)
+        self.representation = nn.Sequential(base_model._convs, out_conv)  # assumes you're using vision network not fc
 
         self.hidden = None
         self.last_action = None
 
+    @override(TorchModelV2)
     def forward(self, input_dict: Dict[str, TensorType], state: List[TensorType],
                 seq_lens: TensorType) -> (TensorType, List[TensorType]):
 
-        obs = input_dict[SampleBatch.OBS].float().permute(0, 3, 1, 2)
-        representation = self.representation_function(obs)
+        representation = self.representation_function(input_dict[SampleBatch.OBS])
 
-        self.hidden = representation
         self.last_action = input_dict[SampleBatch.ACTIONS][-1]
 
+        policy_logits, _ = self.prediction_function(representation)
+
+        return policy_logits, None
+
+    @override(TorchModelV2)
     def value_function(self) -> TensorType:
-        assert self.hidden is not None, "must call forward() first"
+        assert self.hidden is not None, "must call representation function first"
 
         _, value = self.prediction_function(self.hidden)
 
         return value
 
-    def policy_function(self, current_obs: TensorType) -> (TensorType, TensorType):
-        obs = current_obs.float().permute(0, 3, 1, 2)
-
+    def policy_function(self, obs: TensorType) -> (TensorType, TensorType):
         hidden = self.representation_function(obs)
 
         new_policy, _ = self.prediction_function(hidden)
@@ -202,7 +215,11 @@ class MuZeroModel(TorchModelV2, nn.Module):
         return self.dynamics(hidden, action)
 
     def representation_function(self, obs: TensorType) -> TensorType:
-        return self.representation(obs)
+        obs = obs.float().permute(0, 3, 1, 2)
+        output = self.representation(obs)
+        # print(output.shape)  # TODO make hidden state larger? currently is (num env per worker x 256 x 1 x 1)
+        self.hidden = output
+        return output
 
     def metrics(self) -> Dict[str, TensorType]:
         return self.base_model.metrics()

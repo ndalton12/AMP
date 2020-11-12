@@ -45,7 +45,8 @@ def setup_mixins_and_mcts(policy: Policy, obs_space: gym.spaces.Space,
 
     setup_mixins(policy, obs_space, action_space, config)
 
-    policy.mcts = MCTS(policy.model, policy.config["mcts_param"], action_space.shape[0])
+    # assumed discrete action space, TODO make generic for any action space?
+    policy.mcts = MCTS(policy.model, policy.config["mcts_param"], action_space.n, policy.device)
 
 
 def training_view_requirements_mu_fn(policy: Policy) -> Dict[str, ViewRequirement]:
@@ -55,10 +56,9 @@ def training_view_requirements_mu_fn(policy: Policy) -> Dict[str, ViewRequiremen
     return reqs
 
 
-def fetch(
-        policy: Policy, input_dict: Dict[str, TensorType],
-        state_batches: List[TensorType], model: ModelV2,
-        action_dist: TorchDistributionWrapper) -> Dict[str, TensorType]:
+def fetch(policy: Policy, input_dict: Dict[str, TensorType],
+          state_batches: List[TensorType], model: ModelV2,
+          action_dist: TorchDistributionWrapper) -> Dict[str, TensorType]:
 
     """
     Stop trying to make fetch happen.
@@ -163,10 +163,12 @@ def mu_zero_loss(
 def do_simulation(policy: Policy, model: ModelV2, input_dict, state_out):
     num_sims = policy.config["num_simulations"]
 
-    for _ in range(num_sims):
-        policy.mcts.simulation(input_dict[SampleBatch.CUR_OBS])
+    k, current_node, s_i = policy.mcts.setup_simulation(input_dict[SampleBatch.CUR_OBS])
 
-    dist_inputs = policy.mcts.get_root_policy(input_dict[SampleBatch.CUR_OBS])
+    for _ in range(num_sims):
+        policy.mcts.run_simulation(k, current_node, s_i)
+
+    dist_inputs = policy.mcts.get_root_policy()
 
     return dist_inputs, state_out
 
@@ -175,7 +177,10 @@ def mu_action_sampler(policy: Policy, model: ModelV2, input_dict, state_out, exp
     policy.exploration.before_compute_actions(explore=explore, timestep=timestep)
 
     dist_class = policy.dist_class
-    dist_inputs, state_out = do_simulation(policy, model, input_dict, state_out)
+    mcts_dist_inputs, state_out = do_simulation(policy, model, input_dict, state_out)
+    mcts_policy = torch.nn.functional.softmax(mcts_dist_inputs)
+
+    dist_inputs = model.policy_function(input_dict[SampleBatch.OBS])
 
     if not (isinstance(dist_class, functools.partial)
             or issubclass(dist_class, TorchDistributionWrapper)):
@@ -196,6 +201,8 @@ def mu_action_sampler(policy: Policy, model: ModelV2, input_dict, state_out, exp
 
     input_dict[SampleBatch.ACTION_DIST_INPUTS] = dist_inputs  # need this for PPO loss later on, so mutate here as
     # no real better spot without overwritting large parts of TorchPolicy
+
+    input_dict["mcts_policy"] = mcts_policy
 
     return actions, logp, state_out
 
