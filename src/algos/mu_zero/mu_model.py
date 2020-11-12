@@ -1,6 +1,7 @@
 from typing import Dict, List
 
 import gym
+import torch
 from ray.rllib import SampleBatch
 from ray.rllib.models import ModelCatalog, ModelV2
 from ray.rllib.models.torch.misc import same_padding, SlimConv2d, SlimFC, normc_initializer
@@ -124,6 +125,17 @@ class MuZeroDynamicsModel(nn.Module):
         reward = self.reward_head(self.flatten(intermediate))
 
         return reward, new_hidden
+
+    def encode(self, hidden, action):
+        if isinstance(action, int):
+            action = torch.LongTensor(action).to(self.device)
+        else:
+            assert isinstance(action, torch.Tensor)
+            action = action.long().to(self.device)
+
+        new_tensor = torch.cat((hidden, action), dim=1)
+
+        return new_tensor
 
 
 class MuZeroModel(TorchModelV2, nn.Module):
