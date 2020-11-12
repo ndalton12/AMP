@@ -87,14 +87,14 @@ class MCTS:
         if (state, action) in self.lookup_table:
             return self.lookup_table[(state, action)]
         else:
-            reward, new_state = self.model.dynamics(state, action)
+            reward, new_state = self.model.dynamics_function(state, action)
             self.lookup_table[(state, action)] = (new_state, reward)
 
     def state_to_node(self, state, reward=0):
         if state in self.state_node_dict:
             return self.state_node_dict[state]
         else:
-            policy, _ = self.model.prediction(state)
+            policy, _ = self.model.prediction_function(state)
             new_node = Node(state, reward, policy, action_size=self.action_space)
             self.state_node_dict[state] = new_node
             return new_node
@@ -114,7 +114,7 @@ class MCTS:
         return np.power(self.gamma, l - i) * v_l + np.dot(reward_step, discounts)
 
     def get_root_policy(self, obs):
-        s0 = self.model.representation(obs)
+        s0 = self.model.representation_function(obs)
         root_node = self.state_to_node(s0)
 
         return root_node.action_distribution()
@@ -123,7 +123,7 @@ class MCTS:
         if k is None:
             k = self.k
 
-        s0 = self.model.representation(obs)
+        s0 = self.model.representation_function(obs)
         current_node = RootParentNode(s0, self.action_space)
         self.state_node_dict[s0] = current_node
         s_i = s0
@@ -149,8 +149,8 @@ class MCTS:
         a_l = self.get_action(current_node)
         state_action = np.append(state_action, (s_i, a_l))
 
-        r_l, s_l = self.model.dynamics(s_i, a_l)
-        p_l, v_l = self.model.prediction(s_l)
+        r_l, s_l = self.model.dynamics_function(s_i, a_l)
+        p_l, v_l = self.model.prediction_function(s_l)
 
         rewards = np.append(rewards, r_l)
 

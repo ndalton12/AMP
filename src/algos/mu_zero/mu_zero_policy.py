@@ -203,7 +203,7 @@ def mu_action_sampler(policy: Policy, model: ModelV2, input_dict, state_out, exp
 def mu_action_distribution(policy: Policy, model: ModelV2, current_obs, explore: bool, timestep, is_training):
     dist_class = policy.dist_class
 
-    dist_inputs, state_out = model.get_policy(current_obs, explore)
+    dist_inputs, state_out = model.policy_function(current_obs)
 
     return dist_inputs, dist_class, state_out
 
