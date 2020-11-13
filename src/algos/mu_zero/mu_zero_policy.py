@@ -37,6 +37,8 @@ def postprocess_mu_zero(policy: Policy,
 
     sample_batch = postprocess_ppo_gae(policy, sample_batch, other_agent_batches, episode)
 
+    #sample_batch[Postprocessing.VALUE_TARGETS] = np.tanh(sample_batch[Postprocessing.VALUE_TARGETS])
+
     return sample_batch
 
 
@@ -66,8 +68,13 @@ def fetch(policy: Policy, input_dict: Dict[str, TensorType],
     """
 
     fetches = vf_preds_fetches(policy, input_dict, state_batches, model, action_dist)
-    # THIS SQUEEZE IS NECESSARY, b.c. the reward is 1D so yeah, make vf_pred 1D as well, but equal for all actions?
-    fetches[SampleBatch.VF_PREDS] = fetches[SampleBatch.VF_PREDS].squeeze().repeat(policy.action_space.n)
+
+    fetches[SampleBatch.VF_PREDS] = fetches[SampleBatch.VF_PREDS].squeeze(1)  # squeeze to match 1D rewards
+
+    if fetches[SampleBatch.VF_PREDS].shape == torch.Size([1]):
+        # this branch is a hack to conform to ray api for computing sequential actions which take
+        # a VF_PREDS and tries to get a separate one for each action, but should be same for the whole state regardless
+        fetches[SampleBatch.VF_PREDS] = fetches[SampleBatch.VF_PREDS].repeat(policy.action_space.n)
 
     fetches["mcts_policy"] = input_dict["mcts_policy"]
 
@@ -121,7 +128,8 @@ def mu_zero_loss(
             1 + policy.config["clip_param"]))
     mean_policy_loss = reduce_mean_valid(-surrogate_loss)
 
-    train_batch[Postprocessing.VALUE_TARGETS] = torch.nn.functional.tanh(train_batch[Postprocessing.VALUE_TARGETS])
+    # TODO fix this
+    #train_batch[Postprocessing.VALUE_TARGETS] = torch.nn.functional.tanh(train_batch[Postprocessing.VALUE_TARGETS])
 
     if policy.config["use_gae"]:
         prev_value_fn_out = train_batch[SampleBatch.VF_PREDS]
