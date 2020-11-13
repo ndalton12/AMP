@@ -2,6 +2,7 @@ import functools
 from typing import Optional, Dict, Type, Union, List
 
 import gym
+import numpy as np
 
 from ray.rllib import SampleBatch
 from ray.rllib.agents.a3c.a3c_torch_policy import apply_grad_clipping
@@ -65,8 +66,8 @@ def fetch(policy: Policy, input_dict: Dict[str, TensorType],
     """
 
     fetches = vf_preds_fetches(policy, input_dict, state_batches, model, action_dist)
-    # THIS SQUEEZE IS NECESSARY, otherwise ray crashes without giving a call trace to any original code :(
-    fetches[SampleBatch.VF_PREDS] = fetches[SampleBatch.VF_PREDS].squeeze()
+    # THIS SQUEEZE IS NECESSARY, b.c. the reward is 1D so yeah, make vf_pred 1D as well, but equal for all actions?
+    fetches[SampleBatch.VF_PREDS] = fetches[SampleBatch.VF_PREDS].squeeze().repeat(policy.action_space.n)
 
     fetches["mcts_policy"] = input_dict["mcts_policy"]
 
@@ -119,6 +120,8 @@ def mu_zero_loss(
             logp_ratio, 1 - policy.config["clip_param"],
             1 + policy.config["clip_param"]))
     mean_policy_loss = reduce_mean_valid(-surrogate_loss)
+
+    train_batch[Postprocessing.VALUE_TARGETS] = torch.nn.functional.tanh(train_batch[Postprocessing.VALUE_TARGETS])
 
     if policy.config["use_gae"]:
         prev_value_fn_out = train_batch[SampleBatch.VF_PREDS]

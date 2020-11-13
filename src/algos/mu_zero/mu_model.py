@@ -53,15 +53,12 @@ class MuZeroPredictionModel(nn.Module):
             padding=None,
             activation_fn=self.activation)
 
-        self.vlayer2 = SlimConv2d(
-                in_channels=self.channels,
-                out_channels=1,
-                kernel=1,
-                stride=1,
-                padding=None,
-                activation_fn=activation)
+        self.vlayer2 = SlimFC(
+                self.channels,
+                1,
+                activation_fn=None)
 
-        self.value = nn.Sequential(self.vlayer1, self.vlayer2, nn.Flatten())
+        self.value = nn.Sequential(self.vlayer1, nn.Flatten(), self.vlayer2, nn.Tanh())
 
     def forward(self, hidden):
         """
@@ -70,7 +67,6 @@ class MuZeroPredictionModel(nn.Module):
         policy_out = self.policy(hidden)
 
         value_out = self.value(hidden)
-        value_out = value_out.squeeze()
 
         return policy_out, value_out
 

@@ -168,7 +168,7 @@ def vf_preds_fetches(
     # SampleBatches produced by the sampler(s) to generate the train batches
     # going into the loss function.
     return {
-        SampleBatch.VF_PREDS: policy.model.value_function().squeeze(),
+        SampleBatch.VF_PREDS: policy.model.value_function(),
     }
 
 
