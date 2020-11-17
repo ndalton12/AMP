@@ -8,7 +8,7 @@ import torch
 
 class Node:
     def __init__(self, state, reward, policy, action_size, device):
-        self.q_values = torch.zeros(action_size).to(device)  # Q
+        self.q_values = torch.zeros(action_size).to(device)
 
         self.visits = torch.zeros(action_size).to(device)
 
@@ -66,7 +66,7 @@ class MCTS:
         self.gamma = torch.Tensor([mcts_param["gamma"]]).to(self.device)
         self.action_space = action_length
 
-        assert self.k > 1, "K simulations must be greater than 1"
+        assert self.k > 1, "K simulations length must be greater than 1"
 
         self.lookup_table = {}
         self.state_node_dict = {}
@@ -148,7 +148,7 @@ class MCTS:
         min_q = torch.Tensor([float("inf")]).to(self.device)
         max_q = torch.Tensor([float("-inf")]).to(self.device)
 
-        for i in range(k):
+        for i in range(k - 1):
             a_i = self.get_action(current_node)
             state_action.append((s_i, a_i))
 
@@ -174,8 +174,7 @@ class MCTS:
         self.backup(state_action, rewards, v_l, k, min_q, max_q)
 
     def backup(self, states, rewards, v_l, k, min_q, max_q):
-        # TODO double check calculations here and in computing gain
-        for i in reversed(range(1, k + 1)):
+        for i in reversed(range(1, k)):
             g_i = self.compute_gain(rewards, v_l, i, k)
 
             s_i_1, a_i = states[i - 1]

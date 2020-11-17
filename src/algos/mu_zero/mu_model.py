@@ -58,7 +58,7 @@ class MuZeroPredictionModel(nn.Module):
                 1,
                 activation_fn=None)
 
-        self.value = nn.Sequential(self.vlayer1, nn.Flatten(), self.vlayer2, nn.Tanh())
+        self.value = nn.Sequential(self.vlayer1, nn.Flatten(), self.vlayer2)
 
     def forward(self, hidden):
         """
@@ -224,7 +224,6 @@ class MuZeroModel(TorchModelV2, nn.Module):
     def representation_function(self, obs: TensorType) -> TensorType:
         obs = obs.float().permute(0, 3, 1, 2)
         output = self.representation(obs)
-        # print(output.shape)  # TODO make hidden state larger? currently is (num env per worker x 256 x 1 x 1)
         self.hidden = output
         return output
 

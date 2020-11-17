@@ -37,7 +37,10 @@ def postprocess_mu_zero(policy: Policy,
 
     sample_batch = postprocess_ppo_gae(policy, sample_batch, other_agent_batches, episode)
 
+    # possibly switch this to min/max scaling? needs testing
     #sample_batch[Postprocessing.VALUE_TARGETS] = np.tanh(sample_batch[Postprocessing.VALUE_TARGETS])
+    #vals = sample_batch[Postprocessing.VALUE_TARGETS]
+    #sample_batch[Postprocessing.VALUE_TARGETS] = vals - np.amin(vals) / (np.amax(vals) - np.amin(vals))
 
     return sample_batch
 
@@ -48,7 +51,7 @@ def setup_mixins_and_mcts(policy: Policy, obs_space: gym.spaces.Space,
 
     setup_mixins(policy, obs_space, action_space, config)
 
-    # assumed discrete action space, TODO make generic for any action space?
+    # assumed discrete action space
     policy.mcts = MCTS(policy.model, policy.config["mcts_param"], action_space.n, policy.device)
 
 
@@ -62,7 +65,6 @@ def training_view_requirements_mu_fn(policy: Policy) -> Dict[str, ViewRequiremen
 def fetch(policy: Policy, input_dict: Dict[str, TensorType],
           state_batches: List[TensorType], model: ModelV2,
           action_dist: TorchDistributionWrapper) -> Dict[str, TensorType]:
-
     """
     Stop trying to make fetch happen.
     """
@@ -127,9 +129,6 @@ def mu_zero_loss(
             logp_ratio, 1 - policy.config["clip_param"],
             1 + policy.config["clip_param"]))
     mean_policy_loss = reduce_mean_valid(-surrogate_loss)
-
-    # TODO fix this
-    #train_batch[Postprocessing.VALUE_TARGETS] = torch.nn.functional.tanh(train_batch[Postprocessing.VALUE_TARGETS])
 
     if policy.config["use_gae"]:
         prev_value_fn_out = train_batch[SampleBatch.VF_PREDS]
@@ -214,7 +213,7 @@ def mu_action_sampler(policy: Policy, model: ModelV2, input_dict, state_out, exp
             explore=explore)
 
     input_dict[SampleBatch.ACTION_DIST_INPUTS] = dist_inputs  # need this for PPO loss later on, so mutate here as
-    # no real better spot without overwritting large parts of TorchPolicy
+    # no real better spot without overwriting large parts of TorchPolicy
 
     input_dict["mcts_policy"] = mcts_policy
 
@@ -227,6 +226,7 @@ def mu_action_distribution(policy: Policy, model: ModelV2, current_obs, explore:
     dist_inputs, state_out = model.policy_function(current_obs)
 
     return dist_inputs, dist_class, state_out
+
 
 def stats_function(policy: Policy,
                       train_batch: SampleBatch) -> Dict[str, TensorType]:
