@@ -3,7 +3,6 @@ By Team DominateTheStreetsYeetTheSkeet
 
 ## TODO
 
-### MuZero
 * Multi-GPU and TPU support
 
 ### AMPED
@@ -17,3 +16,4 @@ By Team DominateTheStreetsYeetTheSkeet
 * Scaling of value loss?
 * Make representation and hidden state larger than 256 x 1 x 1
 * Generalize to continuous action spaces
+* Add documentation
