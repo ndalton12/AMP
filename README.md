@@ -7,7 +7,6 @@ By Team DominateTheStreetsYeetTheSkeet
 * Multi-GPU and TPU support
 
 ### AMPED
-* Implement advantaged mcts adapted from MuZero
 * Add support for NOMAD dynamics model
 
 ### Test

@@ -1,13 +1,8 @@
-"""
-Mcts implementation modified from
-https://github.com/brilee/python_uct/blob/master/numpy_impl.py
-and Alpha Zero implementation from rllib
-"""
 import torch
 
 
 class Node:
-    def __init__(self, state, reward, policy, action_size, device):
+    def __init__(self, state, reward, policy, value, action_size, device):
         self.q_values = torch.zeros(action_size).to(device)
 
         self.visits = torch.zeros(action_size).to(device)
@@ -15,6 +10,7 @@ class Node:
         self.reward = reward
         self.state = state
         self.policy = policy
+        self.value = value
 
     def number_visits(self, action):
         return self.visits[action]
@@ -57,7 +53,7 @@ class Node:
 
 
 class MCTS:
-    def __init__(self, model, mcts_param, action_length, device):
+    def __init__(self, model, mcts_param, action_length, device, advantaged=False):
         self.model = model
         self.device = device
         self.k = mcts_param["k_sims"]
@@ -65,6 +61,7 @@ class MCTS:
         self.c2 = torch.Tensor([mcts_param["c2"]]).to(self.device)
         self.gamma = torch.Tensor([mcts_param["gamma"]]).to(self.device)
         self.action_space = action_length
+        self.advantaged = advantaged
 
         assert self.k > 1, "K simulations length must be greater than 1"
 
@@ -82,6 +79,9 @@ class MCTS:
 
         values = node.q_values + policy * term * torch.sqrt(total_visits) / (torch.Tensor([1]).to(self.device) + node.visits)
 
+        if self.advantaged:
+            values = values - node.value.squeeze(1)
+
         return torch.argmax(values)
 
     def lookup(self, state, action):
@@ -96,13 +96,13 @@ class MCTS:
         if state in self.state_node_dict:
             return self.state_node_dict[state]
         else:
-            policy, _ = self.model.prediction_function(state)
-            new_node = Node(state, reward, policy, action_size=self.action_space, device=self.device)
+            policy, value = self.model.prediction_function(state)
+            new_node = Node(state, reward, policy, value, action_size=self.action_space, device=self.device)
             self.state_node_dict[state] = new_node
             return new_node
 
-    def store(self, state, reward, policy):
-        new_node = Node(state, reward, policy, action_size=self.action_space, device=self.device)
+    def store(self, state, reward, policy, value):
+        new_node = Node(state, reward, policy, value, action_size=self.action_space, device=self.device)
         self.state_node_dict[state] = new_node
 
     def reset_nodes(self):
@@ -135,7 +135,7 @@ class MCTS:
 
         s0 = self.model.representation_function(obs)
         p0, v0 = self.model.prediction_function(s0)
-        current_node = Node(s0, torch.Tensor([0]).to(self.device), p0, self.action_space, self.device)  # root node
+        current_node = Node(s0, torch.Tensor([0]).to(self.device), p0, v0, self.action_space, self.device)  # root node
         self.s0 = s0
         self.state_node_dict[s0] = current_node
         s_i = s0
@@ -169,7 +169,7 @@ class MCTS:
 
         rewards.append(r_l)
 
-        self.store(s_l, r_l, p_l)
+        self.store(s_l, r_l, p_l, v_l)
 
         self.backup(state_action, rewards, v_l, k, min_q, max_q)
 
