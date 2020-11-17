@@ -169,7 +169,6 @@ class MuZeroModel(TorchModelV2, nn.Module):
 
         self.hidden = None
         self.last_action = None
-        self.stored_value = None
 
     @override(TorchModelV2)
     def forward(self, input_dict: Dict[str, TensorType], state: List[TensorType],
@@ -181,18 +180,13 @@ class MuZeroModel(TorchModelV2, nn.Module):
 
         policy_logits, value = self.prediction_function(representation)
 
-        self.stored_value = value
-
         return policy_logits, []  # state output must be a list here cuz modelv2 requires it rip
 
     @override(TorchModelV2)
     def value_function(self) -> TensorType:
-        assert self.hidden is not None or self.stored_value is not None, "call forward() or representation() first"
+        assert self.hidden is not None, "call forward() or representation() first"
 
-        if self.stored_value is None:
-            _, value = self.prediction_function(self.hidden)
-        else:
-            value = self.stored_value
+        _, value = self.prediction_function(self.hidden)
 
         if len(value.shape) == 1:
             value = value.unsqueeze(0)  # add fake batch dim

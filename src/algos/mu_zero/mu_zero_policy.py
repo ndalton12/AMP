@@ -73,11 +73,6 @@ def fetch(policy: Policy, input_dict: Dict[str, TensorType],
 
     fetches[SampleBatch.VF_PREDS] = fetches[SampleBatch.VF_PREDS].squeeze(1)  # squeeze to match 1D rewards
 
-    if fetches[SampleBatch.VF_PREDS].shape == torch.Size([1]):
-        # this branch is a hack to conform to ray api for computing sequential actions which take
-        # a VF_PREDS and tries to get a separate one for each action, but should be same for the whole state regardless
-        fetches[SampleBatch.VF_PREDS] = fetches[SampleBatch.VF_PREDS].repeat(policy.action_space.n)
-
     fetches["mcts_policy"] = input_dict["mcts_policy"]
 
     fetches[SampleBatch.ACTION_DIST_INPUTS] = input_dict[SampleBatch.ACTION_DIST_INPUTS]

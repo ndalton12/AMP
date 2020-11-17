@@ -16,7 +16,8 @@ def train():
         "seed": 1337,
         "num_envs_per_worker": 5,
         "entropy_coeff": 0.01,
-        "vf_share_layers": True
+        "vf_share_layers": True,
+        "num_sgd_iter": 2,
     })
 
 
