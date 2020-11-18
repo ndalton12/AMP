@@ -56,8 +56,14 @@ class NomadDynamicsModel(nn.Module):
 
         self.reward_head = nn.Sequential(*self.reward_layers)
 
-    def forward(self, hiddens, action):
-        input_tensor = self.encode(hiddens, action)
+    def forward(self, hiddens, action, evolving=False):
+        if evolving:
+            new_hiddens = [x.clone().detach() if i < len(hiddens) - 1 else x for i, x in enumerate(hiddens)]
+        else:
+            last = hiddens[-1]
+            new_hiddens = [last.clone() for _ in range(self.order)]
+
+        input_tensor = self.encode(new_hiddens, action)
 
         intermediate = self.dynamic(input_tensor)
 
@@ -71,6 +77,13 @@ class NomadDynamicsModel(nn.Module):
         assert isinstance(action, torch.Tensor)
 
         # hiddens is a list of order n of tensors batch x 256 x 1 x 1 (for now)
+
+        # hack in case batch sizes are different for past hiddens
+        # batch_sizes = [x.shape[0] for x in hiddens]
+        # min_batch_size = min(batch_sizes)
+        #
+        # if any([x != min_batch_size for x in batch_sizes]):
+        #     hiddens = [x[:min_batch_size] for x in hiddens]
 
         hidden = torch.cat(hiddens, dim=1)
 
@@ -119,10 +132,14 @@ class NomadModel(MuZeroModel):
         self.cache = []
 
     @override(MuZeroModel)
+    def dynamics_function(self, hidden: TensorType, action, evolving) -> (TensorType, TensorType):
+        return self.dynamics(hidden, action, evolving)
+
+    @override(MuZeroModel)
     def reward_function(self) -> TensorType:
         assert self.cache is not None and self.last_action is not None, "must call forward() first"
 
-        reward, _ = self.dynamics_function(self.cache, self.last_action)
+        reward, _ = self.dynamics_function(self.cache, self.last_action, evolving=False)
 
         return reward
 

@@ -17,7 +17,7 @@ class NomadMCTS(MCTS):
         if (state, action) in self.lookup_table:
             return self.lookup_table[(state, action)]
         else:
-            reward, new_state = self.model.dynamics_function(states, action)
+            reward, new_state = self.model.dynamics_function(states, action, evolving=True)
             self.lookup_table[(state, action)] = (new_state, reward)
             return new_state, reward
 
@@ -46,7 +46,7 @@ class NomadMCTS(MCTS):
         a_l = self.get_action(current_node)
         state_action.append((s_i, a_l))
 
-        r_l, s_l = self.model.dynamics_function(cache, a_l)
+        r_l, s_l = self.model.dynamics_function(cache, a_l, evolving=True)
         p_l, v_l = self.model.prediction_function(s_l)
 
         rewards.append(r_l)
