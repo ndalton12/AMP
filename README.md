@@ -3,8 +3,6 @@ By Team DominateTheStreetsYeetTheSkeet
 
 ## TODO
 
-* Store AMPED states in the policy instead of model itself
-* Set policy checkpoint dir and checkpoint settings in trainer
 * Multi-GPU and TPU support
 
 ### Test
