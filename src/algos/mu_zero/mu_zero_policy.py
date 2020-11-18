@@ -37,11 +37,6 @@ def postprocess_mu_zero(policy: Policy,
 
     sample_batch = postprocess_ppo_gae(policy, sample_batch, other_agent_batches, episode)
 
-    # possibly switch this to min/max scaling? needs testing
-    #sample_batch[Postprocessing.VALUE_TARGETS] = np.tanh(sample_batch[Postprocessing.VALUE_TARGETS])
-    #vals = sample_batch[Postprocessing.VALUE_TARGETS]
-    #sample_batch[Postprocessing.VALUE_TARGETS] = vals - np.amin(vals) / (np.amax(vals) - np.amin(vals))
-
     return sample_batch
 
 
