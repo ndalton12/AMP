@@ -153,6 +153,6 @@ def make_nomad_model(policy, obs_space, action_space, config):
         framework="torch")
 
     nomad_model = NomadModel(obs_space, action_space, logit_dim, config["model"], name="NomadModel",
-                             base_model=base_model, order=config["order"])
+                             base_model=base_model, order=config["mcts_param"]["order"])
 
     return nomad_model
