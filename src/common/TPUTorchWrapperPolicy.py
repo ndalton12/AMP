@@ -2,6 +2,7 @@ import time
 from typing import Dict, Callable, Type, Union, List, Optional, Tuple
 
 import gym
+import ray
 import torch
 from ray.rllib import TorchPolicy, Policy, SampleBatch
 from ray.rllib.models import ModelV2
@@ -83,7 +84,9 @@ class TPUTorchWrapperPolicy(TorchPolicy):
         self.framework = "torch"
         Policy.__init__(self, observation_space, action_space, config)
 
-        self.device = xm.xla_device()  # DIFFERENCE HERE FOR TPU USAGE
+        counter = ray.get_actor("global_counter")
+        self.device = xm.xla_device(n=counter.get.remote())  # DIFFERENCE HERE FOR TPU USAGE
+        counter.inc.remote(1)
 
         self.model = model.to(self.device)
         # Combine view_requirements for Model and Policy.

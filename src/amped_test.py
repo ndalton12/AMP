@@ -1,11 +1,14 @@
 from ray import tune
 
 from src.algos.amped.amped_trainer import AmpedTrainer
+from src.common.counter import Counter
 from src.common.env_wrappers import register_super_mario_env
 
 
 def train():
     register_super_mario_env()
+
+    counter = Counter.options(name="global_counter").remote()
 
     tune.run(
         AmpedTrainer,
