@@ -12,7 +12,7 @@ def train():
         config={
             "env": "super_mario",
             "framework": "torch",
-            "num_workers": 1,
+            "num_workers": 3,
             "log_level": "DEBUG",
             "seed": 1337,
             "num_envs_per_worker": 5,
@@ -21,6 +21,7 @@ def train():
             "train_batch_size": 256,
             "num_sgd_iter": 2,
             "num_simulations": 25,
+            #"use_tpu": True,
             #"ignore_worker_failures": True,
         },
         stop={"episodes_total": 100},

@@ -111,13 +111,13 @@ class MCTS:
 
     def compute_gain(self, rewards, v_l, i, l):
         reward_step = rewards[i:]
-        reward_chunk = torch.flatten(torch.hstack(reward_step))
+        reward_chunk = torch.flatten(torch.stack(reward_step, 1))
         exponents = torch.arange(len(reward_chunk)).to(self.device)
         discounts = torch.pow(self.gamma * torch.ones_like(reward_chunk).to(self.device), exponents)
         reward_chunk = reward_chunk.squeeze()
         discounts = discounts.squeeze()
         v_l = v_l.squeeze()
-        return torch.sum(torch.pow(self.gamma, l - i) * v_l) + torch.dot(reward_chunk, discounts)
+        return torch.mean(torch.pow(self.gamma, l - i) * v_l) + torch.dot(reward_chunk, discounts)
 
     def get_root_policy(self):
         """
