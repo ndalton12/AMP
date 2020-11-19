@@ -164,17 +164,19 @@ def build_generic_torch_policy(
         get_batch_divisibility_req (Optional[Callable[[Policy], int]]):
             Optional callable that returns the divisibility requirement for
             sample batches. If None, will assume a value of 1.
-
+        generic_torch_policy (Optional[TorchPolicy]):
+            Optional policy override.
     Returns:
         type: TorchPolicy child class constructed from the specified args.
     """
+
+    original_kwargs = locals().copy()
 
     if generic_torch_policy is not None:
         policy_class = generic_torch_policy
     else:
         policy_class = TorchPolicy
 
-    original_kwargs = locals().copy()
     base = add_mixins(policy_class, mixins)
 
     class policy_cls(base):

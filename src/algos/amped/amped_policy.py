@@ -11,7 +11,8 @@ from src.algos.amped.nomad_mcts import NomadMCTS
 from src.algos.amped.nomad_model import make_nomad_model
 from src.algos.mu_zero.mu_config import DEFAULT_CONFIG
 from src.algos.mu_zero.mu_zero_policy import mu_zero_loss, stats_function, fetch, postprocess_mu_zero, \
-    training_view_requirements_mu_fn, mu_action_sampler, mu_action_distribution
+    training_view_requirements_mu_fn, mu_action_sampler, mu_action_distribution, tpu_import_wrap
+from src.common.torch_generic_policy_template import build_generic_torch_policy
 
 AMPED_CONFIG = DEFAULT_CONFIG
 AMPED_CONFIG["mcts_param"]["order"] = 3
@@ -46,3 +47,25 @@ AmpedTorchPolicy = build_torch_policy(
     action_distribution_fn=mu_action_distribution,
     make_model=make_nomad_model,
 )
+
+
+def get_amped_policy_tpu():
+    return tpu_import_wrap(build_generic_torch_policy,
+        name="AmpedTorchPolicyTPU",
+        get_default_config=lambda: AMPED_CONFIG,
+        loss_fn=mu_zero_loss,
+        stats_fn=stats_function,
+        extra_action_out_fn=fetch,
+        postprocess_fn=postprocess_mu_zero,
+        extra_grad_process_fn=apply_grad_clipping,
+        before_init=setup_config,
+        after_init=setup_nomad,
+        mixins=[
+            LearningRateSchedule, EntropyCoeffSchedule, KLCoeffMixin,
+            ValueNetworkMixin
+        ],
+        training_view_requirements_fn=training_view_requirements_mu_fn,
+        action_sampler_fn=mu_action_sampler,
+        action_distribution_fn=mu_action_distribution,
+        make_model=make_nomad_model
+    )

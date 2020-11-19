@@ -67,10 +67,19 @@ def mu_zero_execution_plan(workers: WorkerSet,
         .for_each(lambda result: warn_about_bad_reward_scales(config, result))
 
 
+def TPUMixinMuZero(config):
+    if "use_tpu" in config and config["use_tpu"]:
+        from src.algos.mu_zero.mu_zero_policy import get_mu_policy_tpu
+        return get_mu_policy_tpu()
+    else:
+        return None
+
+
 MuZeroTrainer = build_trainer(
     name="MuZero",
     default_config=DEFAULT_CONFIG,
     validate_config=validate_config,
+    get_policy_class=TPUMixinMuZero,
     default_policy=MuZeroTorchPolicy,
     execution_plan=mu_zero_execution_plan
 )

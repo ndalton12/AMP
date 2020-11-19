@@ -26,6 +26,7 @@ from src.algos.mu_zero.mu_mcts import MCTS
 from ray.rllib.utils.typing import AgentID, TrainerConfigDict, TensorType
 
 from src.algos.mu_zero.mu_model import make_mu_model
+from src.common.torch_generic_policy_template import build_generic_torch_policy
 
 torch, _ = try_import_torch()
 
@@ -262,3 +263,31 @@ MuZeroTorchPolicy = build_torch_policy(
     action_distribution_fn=mu_action_distribution,
     make_model=make_mu_model,
 )
+
+
+def tpu_import_wrap(func, *args, **kwargs):
+    from src.common.TPUTorchWrapperPolicy import TPUTorchWrapperPolicy
+
+    return func(*args, **kwargs, generic_torch_policy=TPUTorchWrapperPolicy)
+
+
+def get_mu_policy_tpu():
+    return tpu_import_wrap(build_generic_torch_policy,
+        name="MuZeroTorchPolicyTPU",
+        get_default_config=lambda: DEFAULT_CONFIG,
+        loss_fn=mu_zero_loss,
+        stats_fn=stats_function,
+        extra_action_out_fn=fetch,
+        postprocess_fn=postprocess_mu_zero,
+        extra_grad_process_fn=apply_grad_clipping,
+        before_init=setup_config,
+        after_init=setup_mixins_and_mcts,
+        mixins=[
+            LearningRateSchedule, EntropyCoeffSchedule, KLCoeffMixin,
+            ValueNetworkMixin
+        ],
+        training_view_requirements_fn=training_view_requirements_mu_fn,
+        action_sampler_fn=mu_action_sampler,
+        action_distribution_fn=mu_action_distribution,
+        make_model=make_mu_model,
+    )
