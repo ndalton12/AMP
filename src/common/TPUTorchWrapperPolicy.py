@@ -81,7 +81,7 @@ class TPUTorchWrapperPolicy(TorchPolicy):
                 for sample batches given the Policy.
         """
         self.framework = "torch"
-        super().__init__(observation_space, action_space, config)
+        Policy.__init__(self, observation_space, action_space, config)
 
         self.device = xm.xla_device()  # DIFFERENCE HERE FOR TPU USAGE
 
