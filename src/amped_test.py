@@ -12,7 +12,7 @@ def train():
         config={
             "env": "super_mario",
             "framework": "torch",
-            "num_workers": 4,
+            "num_workers": 1,
             "log_level": "DEBUG",
             "seed": 1337,
             "num_envs_per_worker": 5,

@@ -16,6 +16,7 @@ from src.common.torch_generic_policy_template import build_generic_torch_policy
 
 AMPED_CONFIG = DEFAULT_CONFIG
 AMPED_CONFIG["mcts_param"]["order"] = 3
+AMPED_CONFIG["use_tpu"] = False
 
 
 def setup_nomad(policy: Policy, obs_space: gym.spaces.Space,
