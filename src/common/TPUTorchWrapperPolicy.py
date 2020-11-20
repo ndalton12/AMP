@@ -187,7 +187,7 @@ class TPUTorchWrapperPolicy(TorchPolicy):
 
         # Step the optimizer
         for i, opt in enumerate(self._optimizers):
-            xm.optimizer_step(opt)  # HERE IS THE DIFFERENCE FOR TPU USE
+            xm.optimizer_step(opt, barrier=True)  # HERE IS THE DIFFERENCE FOR TPU USE
 
         grad_info["allreduce_latency"] /= len(self._optimizers)
         grad_info.update(self.extra_grad_info(train_batch))
