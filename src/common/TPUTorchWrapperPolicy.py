@@ -87,7 +87,7 @@ class TPUTorchWrapperPolicy(TorchPolicy):
         counter = ray.get_actor("global_counter")
         count = int(ray.get(counter.get.remote()))
         print(count)
-        print(xm.get_xla_supported_devices())
+        #print(xm.get_xla_supported_devices())
         self.device = xm.xla_device(n=count)  # DIFFERENCE HERE FOR TPU USAGE
         counter.inc.remote(1)
 
