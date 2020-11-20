@@ -4,7 +4,7 @@ import ray
 @ray.remote
 class Counter:
     def __init__(self):
-        self.count = 1
+        self.count = 0
 
     def inc(self, n):
         self.count += n
