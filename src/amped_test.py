@@ -10,7 +10,7 @@ def train():
     register_super_mario_env()
 
     ray.init()
-    counter = Counter.options(name="global_counter").remote()
+    counter = Counter.options(name="global_counter", max_concurrency=1).remote()
 
     tune.run(
         AmpedTrainer,
