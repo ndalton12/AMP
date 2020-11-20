@@ -1,3 +1,4 @@
+import asyncio
 import time
 from typing import Dict, Callable, Type, Union, List, Optional, Tuple
 
@@ -85,11 +86,12 @@ class TPUTorchWrapperPolicy(TorchPolicy):
         Policy.__init__(self, observation_space, action_space, config)
 
         counter = ray.get_actor("global_counter")
-        count = ray.get(counter.get.remote())
+        #count = ray.get(counter.get.remote())
+        count = await asyncio.wait([counter.get.remote()])
         print(count)
+        counter.inc.remote(1)
         #print(xm.get_xla_supported_devices())
         self.device = xm.xla_device(n=count)  # DIFFERENCE HERE FOR TPU USAGE
-        counter.inc.remote(1)
 
         self.model = model.to(self.device)
         # Combine view_requirements for Model and Policy.
