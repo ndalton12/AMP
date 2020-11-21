@@ -80,7 +80,7 @@ class MCTS:
         values = node.q_values + policy * term * torch.sqrt(total_visits) / (torch.Tensor([1]).to(self.device) + node.visits)
 
         if self.advantaged:
-            values = values - node.value.squeeze(1)
+            values = values - torch.mean(node.value.squeeze(1))
 
         return torch.argmax(values)
 
@@ -114,9 +114,9 @@ class MCTS:
         reward_chunk = torch.flatten(torch.stack(reward_step, 1))
         exponents = torch.arange(len(reward_chunk)).to(self.device)
         discounts = torch.pow(self.gamma * torch.ones_like(reward_chunk).to(self.device), exponents)
-        reward_chunk = reward_chunk.squeeze()
-        discounts = discounts.squeeze()
-        v_l = v_l.squeeze()
+        reward_chunk = reward_chunk.squeeze(1) if len(reward_chunk.shape) > 1 else reward_chunk
+        discounts = discounts.squeeze(1) if len(discounts.shape) > 1 else discounts
+        v_l = v_l.squeeze(1) if len(v_l.shape) > 1 else v_l
         return torch.mean(torch.pow(self.gamma, l - i) * v_l) + torch.dot(reward_chunk, discounts)
 
     def get_root_policy(self):

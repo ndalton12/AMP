@@ -11,7 +11,7 @@ from src.algos.amped.nomad_mcts import NomadMCTS
 from src.algos.amped.nomad_model import make_nomad_model
 from src.algos.mu_zero.mu_config import DEFAULT_CONFIG
 from src.algos.mu_zero.mu_zero_policy import mu_zero_loss, stats_function, fetch, postprocess_mu_zero, \
-    training_view_requirements_mu_fn, mu_action_sampler, mu_action_distribution, tpu_import_wrap
+    mu_action_sampler, mu_action_distribution, tpu_import_wrap
 from src.common.torch_generic_policy_template import build_generic_torch_policy
 
 AMPED_CONFIG = DEFAULT_CONFIG
@@ -43,7 +43,6 @@ AmpedTorchPolicy = build_torch_policy(
         LearningRateSchedule, EntropyCoeffSchedule, KLCoeffMixin,
         ValueNetworkMixin
     ],
-    training_view_requirements_fn=training_view_requirements_mu_fn,
     action_sampler_fn=mu_action_sampler,
     action_distribution_fn=mu_action_distribution,
     make_model=make_nomad_model,
@@ -65,7 +64,6 @@ def get_amped_policy_tpu():
             LearningRateSchedule, EntropyCoeffSchedule, KLCoeffMixin,
             ValueNetworkMixin
         ],
-        training_view_requirements_fn=training_view_requirements_mu_fn,
         action_sampler_fn=mu_action_sampler,
         action_distribution_fn=mu_action_distribution,
         make_model=make_nomad_model

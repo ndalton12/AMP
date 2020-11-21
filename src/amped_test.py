@@ -26,6 +26,7 @@ def train():
             "train_batch_size": 256,
             "num_sgd_iter": 2,
             "num_simulations": 25,
+            "remote_worker_envs": False
             #"use_tpu": True,
             #"ignore_worker_failures": True,
         },

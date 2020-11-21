@@ -8,7 +8,7 @@ from ray.rllib import SampleBatch
 from ray.rllib.agents.a3c.a3c_torch_policy import apply_grad_clipping
 from ray.rllib.agents.ppo.ppo_tf_policy import postprocess_ppo_gae, setup_config
 from ray.rllib.agents.ppo.ppo_torch_policy import setup_mixins, vf_preds_fetches, KLCoeffMixin, \
-    ValueNetworkMixin, training_view_requirements_fn
+    ValueNetworkMixin
 from ray.rllib.evaluation import MultiAgentEpisode
 from ray.rllib.evaluation.postprocessing import Postprocessing
 from ray.rllib.models import ModelV2
@@ -49,13 +49,6 @@ def setup_mixins_and_mcts(policy: Policy, obs_space: gym.spaces.Space,
 
     # assumed discrete action space
     policy.mcts = MCTS(policy.model, policy.config["mcts_param"], action_space.n, policy.device)
-
-
-def training_view_requirements_mu_fn(policy: Policy) -> Dict[str, ViewRequirement]:
-    reqs = training_view_requirements_fn(policy)
-    reqs["mcts_policy"] = ViewRequirement(shift=0)
-
-    return reqs
 
 
 def fetch(policy: Policy, input_dict: Dict[str, TensorType],
@@ -258,7 +251,6 @@ MuZeroTorchPolicy = build_torch_policy(
         LearningRateSchedule, EntropyCoeffSchedule, KLCoeffMixin,
         ValueNetworkMixin
     ],
-    training_view_requirements_fn=training_view_requirements_mu_fn,
     action_sampler_fn=mu_action_sampler,
     action_distribution_fn=mu_action_distribution,
     make_model=make_mu_model,
@@ -286,7 +278,6 @@ def get_mu_policy_tpu():
             LearningRateSchedule, EntropyCoeffSchedule, KLCoeffMixin,
             ValueNetworkMixin
         ],
-        training_view_requirements_fn=training_view_requirements_mu_fn,
         action_sampler_fn=mu_action_sampler,
         action_distribution_fn=mu_action_distribution,
         make_model=make_mu_model,
