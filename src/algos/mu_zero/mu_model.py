@@ -129,8 +129,7 @@ class MuZeroDynamicsModel(nn.Module):
         assert isinstance(action, torch.Tensor)
 
         action = torch.nn.functional.one_hot(action.long(), num_classes=self.action_size)
-        action = action.unsqueeze(-1).unsqueeze(-1).unsqueeze(0)  # action is now 1 x space_size x 1 x 1
-        action = action.repeat(hidden.shape[0], 1, 1, 1).float()  # repeat along batch dim to match hidden
+        action = action.unsqueeze(-1).unsqueeze(-1)  # action is now batch x space_size x 1 x 1
 
         new_tensor = torch.cat((hidden, action), dim=1)
 
@@ -176,8 +175,6 @@ class MuZeroModel(TorchModelV2, nn.Module):
 
         representation = self.representation_function(input_dict[SampleBatch.OBS])
 
-        self.last_action = input_dict[SampleBatch.PREV_ACTIONS][-1]
-
         policy_logits, value = self.prediction_function(representation)
 
         return policy_logits, []  # state output must be a list here cuz modelv2 requires it rip
@@ -205,10 +202,11 @@ class MuZeroModel(TorchModelV2, nn.Module):
     def prediction_function(self, hidden: TensorType) -> (TensorType, TensorType):
         return self.prediction(hidden)
 
-    def reward_function(self) -> TensorType:
-        assert self.hidden is not None and self.last_action is not None, "must call forward() first"
+    def reward_function(self, policy_logits) -> TensorType:
+        assert self.hidden is not None, "must call forward() first"
 
-        reward, _ = self.dynamics_function(self.hidden, self.last_action)
+        actions = torch.argmax(policy_logits, dim=1)
+        reward, _ = self.dynamics_function(self.hidden, actions)
 
         return reward
 

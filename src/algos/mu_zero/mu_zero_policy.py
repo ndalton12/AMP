@@ -75,6 +75,8 @@ def mu_zero_loss(
     logits, state = model.from_batch(train_batch, is_training=True)
     curr_action_dist = dist_class(logits, model)
 
+    mcts_policy = dist_class(train_batch["mcts_policy"], model)
+
     # RNN case: Mask away 0-padded chunks at end of time axis.
     if state:
         max_seq_len = torch.max(train_batch["seq_lens"])
@@ -134,12 +136,12 @@ def mu_zero_loss(
                                        policy.kl_coeff * action_kl -
                                        policy.entropy_coeff * curr_entropy)
 
-    pred_reward = model.reward_function()
+    pred_reward = model.reward_function(policy_logits=logits)
 
     # rewards need to be float for proper bAcK pRopAgAtiOn
     reward_loss = torch.nn.functional.mse_loss(pred_reward, train_batch[SampleBatch.REWARDS].float())
 
-    mcts_loss = torch.mean(-train_batch["mcts_policy"] * torch.log(curr_action_dist.dist.probs))
+    mcts_loss = torch.mean(-mcts_policy.dist.probs * torch.log(curr_action_dist.dist.probs))
 
     total_loss += reward_loss + mcts_loss
 
@@ -175,7 +177,6 @@ def mu_action_sampler(policy: Policy, model: ModelV2, input_dict, state_out, exp
     dist_inputs = model.policy_function(input_dict[SampleBatch.OBS])
 
     mcts_dist_inputs, state_out = do_simulation(policy, model, input_dict, state_out)
-    mcts_policy = torch.nn.functional.softmax(mcts_dist_inputs, dim=0).unsqueeze(0).repeat(dist_inputs.shape[0], 1)
 
     if not (isinstance(dist_class, functools.partial)
             or issubclass(dist_class, TorchDistributionWrapper)):
@@ -197,7 +198,7 @@ def mu_action_sampler(policy: Policy, model: ModelV2, input_dict, state_out, exp
     input_dict[SampleBatch.ACTION_DIST_INPUTS] = dist_inputs  # need this for PPO loss later on, so mutate here as
     # no real better spot without overwriting large parts of TorchPolicy
 
-    input_dict["mcts_policy"] = mcts_policy
+    input_dict["mcts_policy"] = mcts_dist_inputs
 
     return actions, logp, state_out
 

@@ -2,30 +2,32 @@ import torch
 
 
 class Node:
-    def __init__(self, state, reward, policy, value, action_size, device):
-        self.q_values = torch.zeros(action_size).to(device)
+    def __init__(self, state, reward, policy, value, action_size, device, batch_size):
+        self.q_values = torch.zeros([batch_size, action_size]).to(device)
 
-        self.visits = torch.zeros(action_size).to(device)
+        self.visits = torch.zeros([batch_size, action_size]).to(device)
 
         self.reward = reward
         self.state = state
         self.policy = policy
         self.value = value
 
+        self.action_size = action_size
+
     def number_visits(self, action):
-        return self.visits[action]
+        return self.visits[torch.arange(action.size(0)), action]
 
     def update_num_visit(self, action):
-        self.visits[action] += 1
+        self.visits[torch.arange(action.size(0)), action] += 1
 
     def get_total_visits(self):
-        return torch.sum(self.visits)
+        return torch.sum(self.visits, dim=1)
 
     def q_value(self, action):
-        return self.q_values[action]
+        return self.q_values[torch.arange(action.size(0)), action]
 
     def set_q_value(self, q_val, action):
-        self.q_values[action] = q_val
+        self.q_values[torch.arange(action.size(0)), action] = q_val
 
     def min_q(self):
         return torch.min(self.q_values)
@@ -35,19 +37,17 @@ class Node:
 
     def update(self, gain, action, min_q, max_q):
 
-        action_index = action.item()
-
-        n_a = self.number_visits(action_index)
-        q_old = self.q_value(action_index)
+        n_a = self.number_visits(action)
+        q_old = self.q_value(action)
         q_val = (n_a * q_old + gain) / (n_a + 1)
 
         q_val = (q_val - min_q) / (max_q - min_q)
 
-        self.set_q_value(q_val, action_index)
-        self.update_num_visit(action_index)
+        self.set_q_value(q_val, action)
+        self.update_num_visit(action)
 
     def action_distribution(self):
-        total = torch.sum(self.visits)
+        total = self.get_total_visits().unsqueeze(1).repeat(1, self.action_size)  # batch x action size
 
         return self.visits / total
 
@@ -69,20 +69,15 @@ class MCTS:
         self.state_node_dict = {}
 
     def get_action(self, node):
-        total_visits = node.get_total_visits()
-        term = (self.c1 + torch.log(total_visits + self.c2 + torch.Tensor([1]).to(self.device)) - torch.log(self.c2))
+        total_visits = node.get_total_visits().unsqueeze(1).repeat(1, self.action_space)
+        term = (self.c1 + torch.log(total_visits + self.c2 + torch.ones([1]).to(self.device)) - torch.log(self.c2))
 
-        if len(node.policy.shape) > 1:
-            policy = torch.mean(node.policy, dim=0)
-        else:
-            policy = node.policy
-
-        values = node.q_values + policy * term * torch.sqrt(total_visits) / (torch.Tensor([1]).to(self.device) + node.visits)
+        values = node.q_values + node.policy * term * torch.sqrt(total_visits) / (torch.Tensor([1]).to(self.device) + node.visits)
 
         if self.advantaged:
-            values = values - torch.mean(node.value.squeeze(1))
+            values = values - node.value
 
-        return torch.argmax(values)
+        return torch.argmax(values, dim=1)  # argmax over action dim
 
     def lookup(self, state, action):
         if (state, action) in self.lookup_table:
@@ -92,17 +87,21 @@ class MCTS:
             self.lookup_table[(state, action)] = (new_state, reward)
             return new_state, reward
 
-    def state_to_node(self, state, reward=0):
+    def state_to_node(self, state, reward=None):
         if state in self.state_node_dict:
             return self.state_node_dict[state]
         else:
+            if reward is None:
+                reward = torch.zeros([self.batch_size, 1]).to(self.device)
             policy, value = self.model.prediction_function(state)
-            new_node = Node(state, reward, policy, value, action_size=self.action_space, device=self.device)
+            new_node = Node(state, reward, policy, value,
+                            action_size=self.action_space, device=self.device, batch_size=self.batch_size)
             self.state_node_dict[state] = new_node
             return new_node
 
     def store(self, state, reward, policy, value):
-        new_node = Node(state, reward, policy, value, action_size=self.action_space, device=self.device)
+        new_node = Node(state, reward, policy, value,
+                        action_size=self.action_space, device=self.device, batch_size=self.batch_size)
         self.state_node_dict[state] = new_node
 
     def reset_nodes(self):
@@ -111,13 +110,11 @@ class MCTS:
 
     def compute_gain(self, rewards, v_l, i, l):
         reward_step = rewards[i:]
-        reward_chunk = torch.flatten(torch.stack(reward_step, 1))
-        exponents = torch.arange(len(reward_chunk)).to(self.device)
+        reward_chunk = torch.stack(reward_step, 1).squeeze(2)  # squeeze out the 1D reward dim, so is now batch x length
+        exponents = torch.arange(len(reward_step)).to(self.device)
         discounts = torch.pow(self.gamma * torch.ones_like(reward_chunk).to(self.device), exponents)
-        reward_chunk = reward_chunk.squeeze(1) if len(reward_chunk.shape) > 1 else reward_chunk
-        discounts = discounts.squeeze(1) if len(discounts.shape) > 1 else discounts
-        v_l = v_l.squeeze(1) if len(v_l.shape) > 1 else v_l
-        return torch.mean(torch.pow(self.gamma, l - i) * v_l) + torch.dot(reward_chunk, discounts)
+        v_l = v_l.squeeze(1)  # make v_l just batch size
+        return torch.pow(self.gamma, l - i) * v_l + torch.sum(reward_chunk * discounts, dim=1)  # sum over the step length dim
 
     def get_root_policy(self):
         """
@@ -133,11 +130,14 @@ class MCTS:
 
         self.reset_nodes()
 
+        self.batch_size = obs.shape[0]
+
         s0 = self.model.representation_function(obs)
         p0, v0 = self.model.prediction_function(s0)
-        current_node = Node(s0, torch.Tensor([0]).to(self.device), p0, v0, self.action_space, self.device)  # root node
-        self.s0 = s0
+        current_node = Node(s0, torch.zeros([self.batch_size, 1]).to(self.device), p0, v0,
+                            self.action_space, self.device, self.batch_size)  # root node
         self.state_node_dict[s0] = current_node
+        self.s0 = s0
         s_i = s0
 
         return k, current_node, s_i
