@@ -2,7 +2,6 @@ import functools
 from typing import Optional, Dict, Type, Union, List
 
 import gym
-import numpy as np
 
 from ray.rllib import SampleBatch
 from ray.rllib.agents.a3c.a3c_torch_policy import apply_grad_clipping
@@ -17,7 +16,6 @@ from ray.rllib.policy import build_torch_policy
 
 from ray.rllib.policy.policy import Policy
 from ray.rllib.policy.torch_policy import LearningRateSchedule, EntropyCoeffSchedule
-from ray.rllib.policy.view_requirement import ViewRequirement
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.torch_ops import sequence_mask
 
@@ -141,7 +139,7 @@ def mu_zero_loss(
     # rewards need to be float for proper bAcK pRopAgAtiOn
     reward_loss = torch.nn.functional.mse_loss(pred_reward, train_batch[SampleBatch.REWARDS].float())
 
-    mcts_loss = torch.mean(-train_batch["mcts_policy"] * logp)
+    mcts_loss = torch.mean(-train_batch["mcts_policy"] * torch.log(curr_action_dist.dist.probs))
 
     total_loss += reward_loss + mcts_loss
 
@@ -174,10 +172,10 @@ def mu_action_sampler(policy: Policy, model: ModelV2, input_dict, state_out, exp
     policy.exploration.before_compute_actions(explore=explore, timestep=timestep)
 
     dist_class = policy.dist_class
-    mcts_dist_inputs, state_out = do_simulation(policy, model, input_dict, state_out)
-    mcts_policy = torch.nn.functional.softmax(mcts_dist_inputs)
-
     dist_inputs = model.policy_function(input_dict[SampleBatch.OBS])
+
+    mcts_dist_inputs, state_out = do_simulation(policy, model, input_dict, state_out)
+    mcts_policy = torch.nn.functional.softmax(mcts_dist_inputs, dim=0).unsqueeze(0).repeat(dist_inputs.shape[0], 1)
 
     if not (isinstance(dist_class, functools.partial)
             or issubclass(dist_class, TorchDistributionWrapper)):
