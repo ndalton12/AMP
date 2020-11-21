@@ -54,4 +54,3 @@ class NomadMCTS(MCTS):
         self.store(s_l, r_l, p_l, v_l)
 
         self.backup(state_action, rewards, v_l, k, min_q, max_q)
-

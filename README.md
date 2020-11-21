@@ -10,7 +10,7 @@ By Team DominateTheStreetsYeetTheSkeet
 * Make video of result in Super Mario Bros
 
 ## Optional TODO
-* Make representation and hidden state larger than 256 x 1 x 1
+* Make representation and hidden state larger than 256 x 1 x 1?
 * Add documentation
 
 ## Future Work

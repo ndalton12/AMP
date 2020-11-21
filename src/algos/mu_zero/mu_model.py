@@ -167,7 +167,6 @@ class MuZeroModel(TorchModelV2, nn.Module):
         self.representation = nn.Sequential(base_model._convs, out_conv)  # assumes you're using vision network not fc
 
         self.hidden = None
-        self.last_action = None
 
     @override(TorchModelV2)
     def forward(self, input_dict: Dict[str, TensorType], state: List[TensorType],
@@ -205,7 +204,7 @@ class MuZeroModel(TorchModelV2, nn.Module):
     def reward_function(self, policy_logits) -> TensorType:
         assert self.hidden is not None, "must call forward() first"
 
-        actions = torch.argmax(policy_logits, dim=1)
+        actions = torch.argmax(policy_logits, dim=1).float()
         reward, _ = self.dynamics_function(self.hidden, actions)
 
         return reward
