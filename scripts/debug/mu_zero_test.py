@@ -1,11 +1,16 @@
+import ray
 from ray import tune
 
 from src.algos.mu_zero.mu_zero_trainer import MuZeroTrainer
+from src.common.counter import Counter
 from src.common.env_wrappers import register_super_mario_env
 
 
 def train():
     register_super_mario_env()
+
+    ray.init()
+    _ = Counter.options(name="global_counter", max_concurrency=1).remote()
 
     tune.run(
         MuZeroTrainer,
