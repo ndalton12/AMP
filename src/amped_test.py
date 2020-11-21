@@ -9,7 +9,7 @@ from src.common.env_wrappers import register_super_mario_env
 def train():
     register_super_mario_env()
 
-    ray.init()
+    ray.init(address="auto")
     counter = Counter.options(name="global_counter", max_concurrency=1).remote()
 
     tune.run(
@@ -17,7 +17,7 @@ def train():
         config={
             "env": "super_mario",
             "framework": "torch",
-            "num_workers": 3,
+            "num_workers": 1,
             "log_level": "DEBUG",
             "seed": 1337,
             "num_envs_per_worker": 5,
@@ -26,7 +26,7 @@ def train():
             "train_batch_size": 256,
             "num_sgd_iter": 2,
             "num_simulations": 25,
-            "remote_worker_envs": False
+            "remote_worker_envs": True
             #"use_tpu": True,
             #"ignore_worker_failures": True,
         },
