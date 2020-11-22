@@ -27,11 +27,15 @@ def train():
             "num_sgd_iter": 2,
             "num_simulations": 10,
             "batch_mode": "truncate_episodes",
-            "remote_worker_envs": True
+            "remote_worker_envs": True,
             #"ignore_worker_failures": True,
+            "num_gpus_per_worker": 1,
+            "num_cpus_per_worker": 2,
+            "num_gpus": 1,
         },
+        sync_config=tune.SyncConfig(upload_dir="gs://amp-results"),
         stop={"episodes_total": 100},
-        #checkpoint_freq=1,
+        checkpoint_freq=1,
         #checkpoint_at_end=True,
         #resume=True,
     )

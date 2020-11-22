@@ -4,9 +4,8 @@ By Team DominateTheStreetsYeetTheSkeet
 ## TODO
 
 ### Test
-* Add ray result output to gcp bucket
 * Verify that GPU support works
-* Tune resources for training and do the training
+* Finalize configurations and do the training
 * Make video of result in Super Mario Bros
 
 ## Optional TODO
