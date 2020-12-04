@@ -1,3 +1,0 @@
-torch==1.7.0
-ray[rllib]==1.0.1.post1
-gym-super-mario-bros==7.3.2

@@ -18,7 +18,7 @@ def train():
             "env": "super_mario",
             "framework": "torch",
             "num_workers": 1,
-            "log_level": "DEBUG",
+            "log_level": "INFO",
             "seed": 1337,
             "num_envs_per_worker": 3,
             "entropy_coeff": 0.01,
