@@ -7,7 +7,6 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from src.algos.amped.amped_trainer import AmpedTrainer
-from src.common.counter import Counter
 from src.common.env_wrappers import register_super_mario_env
 
 
@@ -17,7 +16,6 @@ def train():
     client = WebClient(token=os.environ['SLACK_BOT_TOKEN'])
 
     ray.init(address="auto")
-    _ = Counter.options(name="global_counter", max_concurrency=1).remote()
 
     def send_message(message):
         try:
@@ -31,30 +29,32 @@ def train():
             config={
                 "env": "super_mario",
                 "framework": "torch",
-                "num_workers": 10,
+                "num_workers": 128,
                 "log_level": "INFO",
                 "seed": 1337,
-                "num_envs_per_worker": 3,
+                "num_envs_per_worker": 1,
+                "rollout_fragment_length": 1,
                 "entropy_coeff": 0.01,
                 "kl_coeff": 0.0,
-                "train_batch_size": 256,
+                "train_batch_size": 4096,
+                "sgd_minibatch_size": 1024,
                 "num_sgd_iter": 2,
-                "num_simulations": 10,
+                "num_simulations": 50,
                 "batch_mode": "truncate_episodes",
-                "remote_worker_envs": True,
-                #"ignore_worker_failures": True,
-                #"num_gpus_per_worker": 0.33,
-                #"num_cpus_per_worker": 2,
+                #"remote_worker_envs": True,
+                "ignore_worker_failures": True,
+                #"num_gpus_per_worker": 0.0625,
+                #"num_cpus_per_worker": 1,
                 "num_gpus": 1,
-                # "mcts_param": {
-                #     "k_sims": 8,
-                # }
+                "mcts_param": {
+                    "k_sims": 5,
+                }
             },
-            # sync_config=tune.SyncConfig(upload_dir="gs://amp-results"),
-            # stop={"training_iteration": 1000000},
-            # checkpoint_freq=100000,
-            # raise_on_failed_trial=True,
-            #checkpoint_at_end=True,
+            sync_config=tune.SyncConfig(upload_dir="gs://amp-results"),
+            stop={"training_iteration": 50000},
+            checkpoint_freq=2500,
+            raise_on_failed_trial=True,
+            checkpoint_at_end=True,
             #resume=True,
         )
     except TuneError as e:
