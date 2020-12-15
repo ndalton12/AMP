@@ -1,3 +1,6 @@
 **/__pycache__/
 **/.idea/
 gcp
+results
+.DS_Store
+amped.egg-info

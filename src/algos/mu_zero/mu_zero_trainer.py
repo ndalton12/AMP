@@ -27,13 +27,14 @@ def mu_zero_execution_plan(workers: WorkerSet,
         LocalIterator[dict]: The Policy class to use with PPOTrainer.
             If None, use `default_policy` provided in build_trainer().
     """
-    replay_buffer = LocalReplayBuffer(replay_batch_size=config["sgd_minibatch_size"], buffer_size=20000)
+    replay_buffer = LocalReplayBuffer(replay_batch_size=config["sgd_minibatch_size"], buffer_size=20000,
+                                      learning_starts=256)
     rollouts = ParallelRollouts(workers, mode="async")
 
     # Collect batches for the trainable policies.
     # rollouts = rollouts.for_each(
     #     SelectExperiences(workers.trainable_policies()))
-    # Concatenate the SampleBatches into one.
+    # # Concatenate the SampleBatches into one.
     # rollouts = rollouts.combine(
     #     ConcatBatches(min_batch_size=config["train_batch_size"]))
     # Standardize advantages.
@@ -45,7 +46,7 @@ def mu_zero_execution_plan(workers: WorkerSet,
 
     # Perform one training step on the combined + standardized batch.
     if config["simple_optimizer"]:
-        train_op = Replay(local_buffer=replay_buffer, num_async=16).for_each(
+        train_op = Replay(local_buffer=replay_buffer, num_async=128).for_each(
             TrainOneStep(
                 workers,
                 num_sgd_iter=config["num_sgd_iter"],

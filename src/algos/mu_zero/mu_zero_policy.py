@@ -127,7 +127,7 @@ def mu_zero_loss(
         vf_loss = torch.max(vf_loss1, vf_loss2)
         mean_vf_loss = reduce_mean_valid(vf_loss)
         total_loss = reduce_mean_valid(
-            -surrogate_loss + policy.kl_coeff * action_kl +
+            -surrogate_loss * policy.config["surrogate_coeff"] + policy.kl_coeff * action_kl +
             policy.config["vf_loss_coeff"] * vf_loss -
             policy.entropy_coeff * curr_entropy)
     else:

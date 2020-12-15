@@ -66,4 +66,5 @@ DEFAULT_CONFIG = with_common_config({
         "gamma": 0.95,
     },
     "num_simulations": 50,  # from mu zero paper
+    "surrogate_coeff": 0.0,
 })
