@@ -27,26 +27,22 @@ def mu_zero_execution_plan(workers: WorkerSet,
         LocalIterator[dict]: The Policy class to use with PPOTrainer.
             If None, use `default_policy` provided in build_trainer().
     """
-    replay_buffer = LocalReplayBuffer(replay_batch_size=config["sgd_minibatch_size"], buffer_size=20000,
-                                      learning_starts=256)
-    rollouts = ParallelRollouts(workers, mode="async")
+    rollouts = ParallelRollouts(workers, mode="bulk_sync")
 
     # Collect batches for the trainable policies.
-    # rollouts = rollouts.for_each(
-    #     SelectExperiences(workers.trainable_policies()))
-    # # Concatenate the SampleBatches into one.
-    # rollouts = rollouts.combine(
-    #     ConcatBatches(min_batch_size=config["train_batch_size"]))
+    rollouts = rollouts.for_each(
+        SelectExperiences(workers.trainable_policies()))
+    # Concatenate the SampleBatches into one.
+    rollouts = rollouts.combine(
+        ConcatBatches(min_batch_size=config["train_batch_size"]))
     # Standardize advantages.
     rollouts = rollouts.for_each(StandardizeFields(["advantages"]))
-    # Standardize value targets as well
+    # Standardize value targets
     rollouts = rollouts.for_each(StandardizeFields(["value_targets"]))
-
-    store_op = rollouts.for_each(StoreToReplayBuffer(local_buffer=replay_buffer))
 
     # Perform one training step on the combined + standardized batch.
     if config["simple_optimizer"]:
-        train_op = Replay(local_buffer=replay_buffer, num_async=128).for_each(
+        train_op = rollouts.for_each(
             TrainOneStep(
                 workers,
                 num_sgd_iter=config["num_sgd_iter"],
@@ -67,9 +63,6 @@ def mu_zero_execution_plan(workers: WorkerSet,
 
     # Update KL after each round of training.
     train_op = train_op.for_each(lambda t: t[1]).for_each(UpdateKL(workers))
-
-    train_op = Concurrently(
-        [store_op, train_op], mode="async", output_indexes=[1])
 
     # Warn about bad reward scales and return training metrics.
     return StandardMetricsReporting(train_op, workers, config) \
